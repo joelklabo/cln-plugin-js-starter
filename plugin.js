@@ -5,27 +5,32 @@ import path from "path";
 
 class Plugin {
   constructor(options) {
-		this.dynamic = options.dynamic || false;
-		this.options = []
-		this.methods = []
-	}
+    this.dynamic = options.dynamic || false;
+    this.options = [];
+    this.methods = [];
+    this.subscriptions = {};
+  }
 
-	addOption = (key, type, description, default_value) => {
-		this.options.push({
-			name: key,
-			type: type,
-			description: description,
-			default: default_value,
-		})
-	}
+  addOption = (key, type, description, default_value) => {
+    this.options.push({
+      name: key,
+      type: type,
+      description: description,
+      default: default_value,
+    });
+  };
 
-	addMethod = (key, description, usage) => {
-		this.methods.push({
-			name: key,
-			description: description,
-			usage: usage,
-		})
-	}
+  addMethod = (key, description, usage) => {
+    this.methods.push({
+      name: key,
+      description: description,
+      usage: usage,
+    });
+  };
+
+  subscribe = (key, handler) => {
+    this.subscriptions[key] = handler;
+  };
 
   init = {};
 
@@ -39,9 +44,10 @@ class Plugin {
     return {
       dynamic: true,
       options: this.options,
-      rpcmethods: this.methods
-    }
-  }
+      rpcmethods: this.methods,
+      subscriptions: Object.keys(this.subscriptions),
+    };
+  };
 
   testinfo = () => {
     return {
@@ -61,13 +67,20 @@ class Plugin {
 
     while ((chunk = process.stdin.read())) {
       const msg = chunk.split("\n\n")[0];
+
       try {
         message = JSON.parse(msg);
       } catch (err) {
         console.error("Error parsing JSON:", err);
       }
+
       if (!message || !message.method || message.jsonrpc !== "2.0") {
         console.error("Invalid JSON-RPC 2.0 message:", line);
+        break;
+      }
+
+      if (this.subscriptions.hasOwnProperty(message.method)) {
+        this.subscriptions[message.method](message.params);
       } else {
         await this.handleMessage(message);
       }
